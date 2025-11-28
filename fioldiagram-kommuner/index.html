@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Byggnader per kommun - Violindiagram</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background-color: #fafafa;
+            color: #333;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 40px;
+            border: 1px solid #e0e0e0;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 400;
+            margin-bottom: 10px;
+            color: #2a2a2a;
+            letter-spacing: 0.5px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 40px;
+            font-weight: 300;
+        }
+
+        #chart {
+            margin-top: 20px;
+        }
+
+        .axis line,
+        .axis path {
+            stroke: #d0d0d0;
+            stroke-width: 1;
+            shape-rendering: crispEdges;
+        }
+
+        .axis text {
+            fill: #666;
+            font-size: 11px;
+            font-weight: 300;
+        }
+
+        .violin-path {
+            fill: #4a4a4a;
+            stroke: #2a2a2a;
+            stroke-width: 1;
+            opacity: 0.7;
+        }
+
+        .median-line {
+            stroke: #1a1a1a;
+            stroke-width: 2;
+        }
+
+        .grid line {
+            stroke: #e8e8e8;
+            stroke-width: 1;
+            stroke-dasharray: 2,2;
+        }
+
+        .grid path {
+            stroke-width: 0;
+        }
+
+        .municipality-label {
+            fill: #333;
+            font-size: 12px;
+            font-weight: 400;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #999;
+            font-size: 14px;
+        }
+
+        .controls {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .control-group {
+            display: inline-block;
+            margin-right: 30px;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-group select,
+        .control-group input {
+            padding: 8px 12px;
+            border: 1px solid #d0d0d0;
+            background-color: white;
+            color: #333;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .control-group select:focus,
+        .control-group input:focus {
+            outline: none;
+            border-color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Byggnadshistorik per kommun</h1>
+        <p class="subtitle">Fördelning av byggnadsår över svenska kommuner</p>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="topN">Antal kommuner</label>
+                <select id="topN">
+                    <option value="10">Topp 10</option>
+                    <option value="15" selected>Topp 15</option>
+                    <option value="20">Topp 20</option>
+                    <option value="25">Topp 25</option>
+                    <option value="all">Alla</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="minBuildings">Minsta antal byggnader</label>
+                <input type="number" id="minBuildings" value="5" min="1" max="100">
+            </div>
+        </div>
+
+        <div id="chart">
+            <div class="loading">Laddar data...</div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const margin = { top: 20, right: 40, bottom: 100, left: 60 };
+        const width = 1200 - margin.left - margin.right;
+        const height = 600 - margin.top - margin.bottom;
+
+        let rawData = [];
+        let currentData = [];
+
+        // Load and parse CSV
+        d3.csv('Byggnader med startdatum, kommuner.csv').then(data => {
+            rawData = data
+                .map(d => ({
+                    building: d.building,
+                    name: d.geometryTitle,
+                    year: +d.constructionTimeStart,
+                    municipality: d.municipalicy
+                }))
+                .filter(d => !isNaN(d.year) && d.year > 1000 && d.year < 2100);
+
+            updateChart();
+
+            // Add event listeners
+            d3.select('#topN').on('change', updateChart);
+            d3.select('#minBuildings').on('change', updateChart);
+        });
+
+        function updateChart() {
+            const topN = d3.select('#topN').property('value');
+            const minBuildings = +d3.select('#minBuildings').property('value');
+
+            // Group by municipality
+            const groupedData = d3.group(rawData, d => d.municipality);
+
+            // Filter and sort municipalities
+            let municipalities = Array.from(groupedData.entries())
+                .filter(([_, buildings]) => buildings.length >= minBuildings)
+                .sort((a, b) => b[1].length - a[1].length);
+
+            if (topN !== 'all') {
+                municipalities = municipalities.slice(0, +topN);
+            }
+
+            currentData = municipalities.map(([municipality, buildings]) => ({
+                municipality,
+                years: buildings.map(b => b.year),
+                count: buildings.length
+            }));
+
+            drawViolin();
+        }
+
+        function drawViolin() {
+            // Clear previous chart
+            d3.select('#chart').html('');
+
+            if (currentData.length === 0) {
+                d3.select('#chart').html('<div class="loading">Ingen data matchar de aktuella filtren</div>');
+                return;
+            }
+
+            // Create SVG
+            const svg = d3.select('#chart')
+                .append('svg')
+                .attr('width', width + margin.left + margin.right)
+                .attr('height', height + margin.top + margin.bottom)
+                .append('g')
+                .attr('transform', `translate(${margin.left},${margin.top})`);
+
+            // Scales
+            const x = d3.scaleBand()
+                .domain(currentData.map(d => d.municipality))
+                .range([0, width])
+                .padding(0.3);
+
+            const allYears = currentData.flatMap(d => d.years);
+            const y = d3.scaleLinear()
+                .domain([d3.min(allYears), d3.max(allYears)])
+                .range([height, 0])
+                .nice();
+
+            // Add grid
+            svg.append('g')
+                .attr('class', 'grid')
+                .call(d3.axisLeft(y)
+                    .tickSize(-width)
+                    .tickFormat('')
+                );
+
+            // Axes
+            svg.append('g')
+                .attr('class', 'axis')
+                .attr('transform', `translate(0,${height})`)
+                .call(d3.axisBottom(x))
+                .selectAll('text')
+                .attr('transform', 'rotate(-45)')
+                .style('text-anchor', 'end')
+                .attr('dx', '-8px')
+                .attr('dy', '0px');
+
+            svg.append('g')
+                .attr('class', 'axis')
+                .call(d3.axisLeft(y).ticks(10));
+
+            // Y-axis label
+            svg.append('text')
+                .attr('transform', 'rotate(-90)')
+                .attr('y', -margin.left + 5)
+                .attr('x', -height / 2)
+                .attr('dy', '1em')
+                .style('text-anchor', 'middle')
+                .style('font-size', '12px')
+                .style('fill', '#666')
+                .text('Byggnadsår');
+
+            // Create violin plots
+            currentData.forEach(d => {
+                const violinWidth = x.bandwidth();
+                const violinX = x(d.municipality);
+
+                // Calculate kernel density estimation
+                const kde = kernelDensityEstimator(kernelEpanechnikov(20), y.ticks(50));
+                const density = kde(d.years);
+
+                // Scale for width based on density
+                const maxDensity = d3.max(density, d => d[1]);
+                const xNum = d3.scaleLinear()
+                    .domain([0, maxDensity])
+                    .range([0, violinWidth / 2]);
+
+                // Create area for violin
+                const area = d3.area()
+                    .curve(d3.curveCatmullRom)
+                    .x0(d => violinX + violinWidth / 2 - xNum(d[1]))
+                    .x1(d => violinX + violinWidth / 2 + xNum(d[1]))
+                    .y(d => y(d[0]));
+
+                // Draw violin
+                svg.append('path')
+                    .datum(density)
+                    .attr('class', 'violin-path')
+                    .attr('d', area);
+
+                // Add median line
+                const median = d3.median(d.years);
+                svg.append('line')
+                    .attr('class', 'median-line')
+                    .attr('x1', violinX + violinWidth * 0.3)
+                    .attr('x2', violinX + violinWidth * 0.7)
+                    .attr('y1', y(median))
+                    .attr('y2', y(median));
+            });
+        }
+
+        // Kernel density estimation functions
+        function kernelDensityEstimator(kernel, X) {
+            return function(V) {
+                return X.map(x => [x, d3.mean(V, v => kernel(x - v))]);
+            };
+        }
+
+        function kernelEpanechnikov(bandwidth) {
+            return function(u) {
+                const v = u / bandwidth;
+                return Math.abs(v) <= 1 ? 0.75 * (1 - v * v) / bandwidth : 0;
+            };
+        }
+    </script>
+</body>
+</html>

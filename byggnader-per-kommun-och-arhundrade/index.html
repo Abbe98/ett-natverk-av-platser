@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Byggnader per kommun och århundrade</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #ffffff;
+            color: #333333;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 300;
+            color: #1a1a1a;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 40px;
+        }
+
+        .century-btn {
+            padding: 10px 20px;
+            border: 1px solid #cccccc;
+            background-color: #ffffff;
+            color: #666666;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .century-btn:hover {
+            background-color: #f5f5f5;
+            border-color: #999999;
+        }
+
+        .century-btn.active {
+            background-color: #333333;
+            color: #ffffff;
+            border-color: #333333;
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 40px;
+            padding: 20px;
+        }
+
+        .chart-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chart-title {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #666666;
+            text-align: center;
+            font-weight: 400;
+        }
+
+        .chart-count {
+            font-size: 11px;
+            color: #999999;
+            margin-top: 5px;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 40px;
+            padding-top: 40px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #666666;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #cccccc;
+        }
+
+        svg {
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.05));
+        }
+
+        svg path {
+            cursor: pointer;
+            transition: opacity 0.15s ease;
+        }
+
+        svg path:hover {
+            opacity: 0.8;
+        }
+
+        .tooltip {
+            position: fixed;
+            background-color: rgba(26, 26, 26, 0.95);
+            color: #ffffff;
+            padding: 8px 12px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            z-index: 1000;
+            white-space: nowrap;
+            border: 1px solid #404040;
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Byggnader per kommun och århundrade</h1>
+        </header>
+
+        <div class="controls" id="controls"></div>
+
+        <div class="charts-container" id="charts"></div>
+
+        <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // Global state
+        let municipalitiesData = null;
+        let centuriesData = null;
+
+        // Tooltip functions
+        const tooltip = document.getElementById('tooltip');
+
+        function showTooltip(text, event) {
+            tooltip.textContent = text;
+            tooltip.classList.add('visible');
+            updateTooltipPosition(event);
+        }
+
+        function hideTooltip() {
+            tooltip.classList.remove('visible');
+        }
+
+        function updateTooltipPosition(event) {
+            const offset = 10;
+            tooltip.style.left = (event.clientX + offset) + 'px';
+            tooltip.style.top = (event.clientY + offset) + 'px';
+        }
+
+        // Filter function
+        function filterByCentury(century) {
+            // Update button states
+            document.querySelectorAll('.century-btn').forEach(btn => {
+                btn.classList.remove('active');
+                // Check if this button matches the selected century
+                if (century === null && btn.textContent === 'Alla århundraden') {
+                    btn.classList.add('active');
+                } else if (century !== null && btn.textContent === centuryLabel(century)) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // Re-render charts with the new filter
+            renderCharts(municipalitiesData, century);
+        }
+
+        // CSV parsing function
+        function parseCSV(text) {
+            const lines = text.trim().split('\n');
+            const data = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const matches = lines[i].match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g);
+                if (matches && matches.length >= 4) {
+                    const year = parseInt(matches[2].replace(/"/g, ''));
+                    const municipality = matches[3].replace(/"/g, '');
+
+                    if (!isNaN(year) && municipality) {
+                        data.push({
+                            building: matches[0].replace(/"/g, ''),
+                            name: matches[1].replace(/"/g, ''),
+                            year: year,
+                            municipality: municipality
+                        });
+                    }
+                }
+            }
+
+            return data;
+        }
+
+        // Get century from year
+        function getCentury(year) {
+            return Math.floor((year - 1) / 100) + 1;
+        }
+
+        // Century to label
+        function centuryLabel(century) {
+            // Swedish ordinals: most centuries end in "e", but 21st is "a"
+            const suffix = century === 21 ? 'a' : 'e';
+            return `${century}:${suffix} århundradet`;
+        }
+
+        // Gray color palette for centuries
+        const centuryColors = {
+            15: '#1a1a1a',
+            16: '#404040',
+            17: '#666666',
+            18: '#808080',
+            19: '#999999',
+            20: '#b3b3b3',
+            21: '#cccccc'
+        };
+
+        // Group data by municipality and century
+        function processData(buildings) {
+            const municipalities = {};
+            const centuries = new Set();
+
+            buildings.forEach(building => {
+                const century = getCentury(building.year);
+                centuries.add(century);
+
+                if (!municipalities[building.municipality]) {
+                    municipalities[building.municipality] = {
+                        total: 0,
+                        centuries: {}
+                    };
+                }
+
+                municipalities[building.municipality].total++;
+
+                if (!municipalities[building.municipality].centuries[century]) {
+                    municipalities[building.municipality].centuries[century] = 0;
+                }
+
+                municipalities[building.municipality].centuries[century]++;
+            });
+
+            return { municipalities, centuries: Array.from(centuries).sort() };
+        }
+
+        // Create donut chart SVG
+        function createDonutChart(municipalityData, municipality, maxCount, selectedCentury) {
+            const centuries = municipalityData.centuries;
+
+            // Calculate size based on count
+            let sizeCount = municipalityData.total;
+            if (selectedCentury) {
+                sizeCount = centuries[selectedCentury] || 0;
+            }
+
+            const minSize = 60;
+            const maxSize = 200;
+            const size = minSize + (maxSize - minSize) * Math.sqrt(sizeCount / maxCount);
+
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', maxSize + 20);
+            svg.setAttribute('height', maxSize + 20);
+            svg.setAttribute('viewBox', `0 0 ${maxSize + 20} ${maxSize + 20}`);
+
+            const centerX = (maxSize + 20) / 2;
+            const centerY = (maxSize + 20) / 2;
+            const radius = size / 2;
+            const innerRadius = radius * 0.6;
+
+            // Calculate total for percentages and filter by selected century if applicable
+            let total = 0;
+            let centuryEntries = Object.entries(centuries);
+
+            // Filter to only selected century if a filter is active
+            if (selectedCentury) {
+                centuryEntries = centuryEntries.filter(([century, _]) => parseInt(century) === selectedCentury);
+            }
+
+            centuryEntries.forEach(([_, count]) => {
+                total += count;
+            });
+
+            // Draw donut segments
+            let currentAngle = -Math.PI / 2; // Start at top
+
+            centuryEntries.sort((a, b) => parseInt(a[0]) - parseInt(b[0])).forEach(([century, count]) => {
+                const percentage = count / total;
+                let angleSize = percentage * 2 * Math.PI;
+
+                if (angleSize > 0) {
+                    // Handle full circle case - SVG arcs can't draw exactly 360 degrees
+                    if (angleSize >= 2 * Math.PI - 0.001) {
+                        angleSize = 2 * Math.PI - 0.001;
+                    }
+
+                    const endAngle = currentAngle + angleSize;
+
+                    const x1 = centerX + Math.cos(currentAngle) * radius;
+                    const y1 = centerY + Math.sin(currentAngle) * radius;
+                    const x2 = centerX + Math.cos(endAngle) * radius;
+                    const y2 = centerY + Math.sin(endAngle) * radius;
+
+                    const x3 = centerX + Math.cos(endAngle) * innerRadius;
+                    const y3 = centerY + Math.sin(endAngle) * innerRadius;
+                    const x4 = centerX + Math.cos(currentAngle) * innerRadius;
+                    const y4 = centerY + Math.sin(currentAngle) * innerRadius;
+
+                    const largeArc = angleSize > Math.PI ? 1 : 0;
+
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const d = [
+                        `M ${x1} ${y1}`,
+                        `A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`,
+                        `L ${x3} ${y3}`,
+                        `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4}`,
+                        'Z'
+                    ].join(' ');
+
+                    path.setAttribute('d', d);
+                    path.setAttribute('fill', centuryColors[century] || '#dddddd');
+                    path.setAttribute('stroke', '#ffffff');
+                    path.setAttribute('stroke-width', '1');
+
+                    // Add custom tooltip on hover
+                    const tooltipText = `${centuryLabel(century)}: ${count} ${count === 1 ? 'byggnad' : 'byggnader'}`;
+                    path.addEventListener('mouseenter', (e) => showTooltip(tooltipText, e));
+                    path.addEventListener('mousemove', updateTooltipPosition);
+                    path.addEventListener('mouseleave', hideTooltip);
+
+                    // Add click handler to filter by century
+                    const centuryNum = parseInt(century);
+                    path.addEventListener('click', () => {
+                        filterByCentury(centuryNum);
+                    });
+
+                    svg.appendChild(path);
+
+                    currentAngle = endAngle;
+                }
+            });
+
+            return svg;
+        }
+
+        // Render all charts
+        function renderCharts(municipalities, selectedCentury) {
+            const chartsContainer = document.getElementById('charts');
+            chartsContainer.innerHTML = '';
+
+            // Find max count for scaling
+            let maxCount = 0;
+            Object.values(municipalities).forEach(data => {
+                if (selectedCentury) {
+                    const count = data.centuries[selectedCentury] || 0;
+                    maxCount = Math.max(maxCount, count);
+                } else {
+                    maxCount = Math.max(maxCount, data.total);
+                }
+            });
+
+            // Sort municipalities by count (descending)
+            const sortedMunicipalities = Object.entries(municipalities).sort((a, b) => {
+                const countA = selectedCentury ? (a[1].centuries[selectedCentury] || 0) : a[1].total;
+                const countB = selectedCentury ? (b[1].centuries[selectedCentury] || 0) : b[1].total;
+                return countB - countA;
+            });
+
+            sortedMunicipalities.forEach(([municipality, data]) => {
+                const count = selectedCentury ? (data.centuries[selectedCentury] || 0) : data.total;
+
+                // Skip if no buildings in selected century
+                if (selectedCentury && count === 0) return;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'chart-wrapper';
+
+                const svg = createDonutChart(data, municipality, maxCount, selectedCentury);
+                wrapper.appendChild(svg);
+
+                const title = document.createElement('div');
+                title.className = 'chart-title';
+                title.textContent = municipality;
+                wrapper.appendChild(title);
+
+                const countDiv = document.createElement('div');
+                countDiv.className = 'chart-count';
+                countDiv.textContent = `${count} ${count !== 1 ? 'byggnader' : 'byggnad'}`;
+                wrapper.appendChild(countDiv);
+
+                chartsContainer.appendChild(wrapper);
+            });
+        }
+
+        // Render controls
+        function renderControls(centuries, municipalities) {
+            const controlsContainer = document.getElementById('controls');
+            controlsContainer.innerHTML = '';
+
+            // All button
+            const allBtn = document.createElement('button');
+            allBtn.className = 'century-btn active';
+            allBtn.textContent = 'Alla århundraden';
+            allBtn.onclick = () => filterByCentury(null);
+            controlsContainer.appendChild(allBtn);
+
+            // Century buttons
+            centuries.forEach(century => {
+                const btn = document.createElement('button');
+                btn.className = 'century-btn';
+                btn.textContent = centuryLabel(century);
+                btn.onclick = () => filterByCentury(century);
+                controlsContainer.appendChild(btn);
+            });
+        }
+
+        // Render legend
+        function renderLegend(centuries) {
+            const legendContainer = document.getElementById('legend');
+            legendContainer.innerHTML = '';
+
+            centuries.forEach(century => {
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+
+                const color = document.createElement('div');
+                color.className = 'legend-color';
+                color.style.backgroundColor = centuryColors[century] || '#dddddd';
+
+                const label = document.createElement('span');
+                label.textContent = centuryLabel(century);
+
+                item.appendChild(color);
+                item.appendChild(label);
+                legendContainer.appendChild(item);
+            });
+        }
+
+        // Load and process CSV
+        fetch('Byggnader med startdatum, kommuner.csv')
+            .then(response => response.text())
+            .then(csvText => {
+                const buildings = parseCSV(csvText);
+                const { municipalities, centuries } = processData(buildings);
+
+                // Store in global state
+                municipalitiesData = municipalities;
+                centuriesData = centuries;
+
+                renderControls(centuries, municipalities);
+                renderLegend(centuries);
+                renderCharts(municipalities, null);
+            })
+            .catch(error => {
+                console.error('Error loading CSV:', error);
+                document.getElementById('charts').innerHTML =
+                    '<p style="text-align: center; color: #999;">Fel vid inläsning av data. Kontrollera att CSV-filen finns i samma katalog.</p>';
+            });
+    </script>
+</body>
+</html>

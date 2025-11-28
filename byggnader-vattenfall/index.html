@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Byggnader Tidslinje</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #fafafa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background: white;
+            border: 1px solid #e0e0e0;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 40px;
+            background: white;
+            color: #1a1a1a;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        h1 {
+            font-size: 32px;
+            margin-bottom: 12px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .stats {
+            font-size: 14px;
+            color: #666;
+            font-weight: 400;
+        }
+
+        .controls {
+            padding: 30px 40px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 30px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            background: #fafafa;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        select, input {
+            padding: 10px 14px;
+            border: 1px solid #d0d0d0;
+            border-radius: 2px;
+            font-size: 14px;
+            min-width: 220px;
+            background: white;
+            color: #1a1a1a;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #666;
+            box-shadow: 0 0 0 1px #666;
+        }
+
+        .timeline-container {
+            padding: 30px 40px;
+            padding-top: 0;
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: calc(100vh - 320px);
+            background: white;
+        }
+
+        .timeline {
+            position: relative;
+            min-height: 500px;
+        }
+
+        .year-axis {
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+            height: 50px;
+            border-bottom: 1px solid #1a1a1a;
+            margin-bottom: 20px;
+        }
+
+        .year-marker {
+            position: absolute;
+            bottom: 8px;
+            font-size: 10px;
+            color: #999;
+            transform: translateX(-50%);
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        .year-marker::before {
+            content: '';
+            position: absolute;
+            bottom: -9px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 1px;
+            height: 6px;
+            background: #999;
+        }
+
+        .building-row {
+            position: relative;
+            height: 28px;
+            margin-bottom: 1px;
+            display: flex;
+            align-items: center;
+        }
+
+        .building-bar {
+            position: absolute;
+            height: 20px;
+            background: #2a2a2a;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            overflow: hidden;
+            border-right: 1px solid #e0e0e0;
+        }
+
+        .building-bar:hover {
+            height: 24px;
+            background: #1a1a1a;
+            z-index: 5;
+        }
+
+        .building-label {
+            position: absolute;
+            left: 0;
+            white-space: nowrap;
+            font-size: 11px;
+            color: white;
+            padding: 0 10px;
+            line-height: 20px;
+            font-weight: 400;
+            letter-spacing: 0.2px;
+        }
+
+        .building-year {
+            position: absolute;
+            right: 10px;
+            font-size: 10px;
+            color: rgba(255,255,255,0.7);
+            font-weight: 500;
+        }
+
+        .tooltip {
+            position: fixed;
+            background: #1a1a1a;
+            color: white;
+            padding: 12px 16px;
+            font-size: 13px;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+            max-width: 320px;
+            border: 1px solid #333;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .tooltip-title {
+            font-weight: 500;
+            margin-bottom: 6px;
+            letter-spacing: 0.2px;
+        }
+
+        .tooltip-info {
+            font-size: 12px;
+            color: #ccc;
+            font-weight: 400;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 80px 40px;
+            color: #999;
+            font-size: 14px;
+            letter-spacing: 0.3px;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 80px 40px;
+            color: #999;
+            font-size: 14px;
+            letter-spacing: 0.3px;
+        }
+
+        .search-box {
+            min-width: 280px;
+        }
+
+        /* Scrollbar styling */
+        .timeline-container::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        .timeline-container::-webkit-scrollbar-track {
+            background: #f5f5f5;
+        }
+
+        .timeline-container::-webkit-scrollbar-thumb {
+            background: #d0d0d0;
+        }
+
+        .timeline-container::-webkit-scrollbar-thumb:hover {
+            background: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Byggnader Tidslinje</h1>
+            <div class="stats" id="stats">Laddar data...</div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="municipality-filter">Kommun</label>
+                <select id="municipality-filter">
+                    <option value="">Alla kommuner</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="search-box">Sök byggnadsnamn</label>
+                <input type="text" id="search-box" class="search-box" placeholder="Skriv för att söka...">
+            </div>
+        </div>
+
+        <div class="timeline-container">
+            <div id="loading" class="loading">Laddar byggnadsdata...</div>
+            <div id="timeline" class="timeline" style="display: none;">
+                <div class="year-axis" id="year-axis"></div>
+                <div id="building-rows"></div>
+            </div>
+            <div id="no-results" class="no-results" style="display: none;">
+                Inga byggnader hittades som matchar dina kriterier.
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip">
+        <div class="tooltip-title" id="tooltip-title"></div>
+        <div class="tooltip-info" id="tooltip-info"></div>
+    </div>
+
+    <script>
+        let allBuildings = [];
+        let filteredBuildings = [];
+        let minYear, maxYear, currentYear;
+        let timelineWidth = 2000; // Will be calculated dynamically
+
+        // Calculate timeline width based on available space
+        function calculateTimelineWidth() {
+            const container = document.querySelector('.timeline-container');
+            if (container) {
+                // Use much larger width to create spacious timeline
+                // Minimum 2 pixels per year for good visibility
+                const yearRange = maxYear - minYear;
+                const minWidthByYears = yearRange * 2;
+                const containerWidth = container.clientWidth - 80;
+
+                // Use the larger of: container width or calculated width based on years
+                timelineWidth = Math.max(minWidthByYears, containerWidth, 1600);
+            }
+        }
+
+        // Load and parse CSV
+        async function loadCSV() {
+            try {
+                const response = await fetch('Byggnader med startdatum, kommuner.csv');
+                const text = await response.text();
+                const lines = text.trim().split('\n');
+
+                // Parse CSV (simple parser for quoted fields)
+                allBuildings = lines.slice(1).map(line => {
+                    const matches = line.match(/"([^"]*)"/g);
+                    if (!matches || matches.length < 4) return null;
+
+                    return {
+                        id: matches[0].replace(/"/g, ''),
+                        name: matches[1].replace(/"/g, ''),
+                        year: parseInt(matches[2].replace(/"/g, '')),
+                        municipality: matches[3].replace(/"/g, '')
+                    };
+                }).filter(b => b && b.year && !isNaN(b.year));
+
+                // Sort by year
+                allBuildings.sort((a, b) => a.year - b.year);
+
+                // Calculate year range
+                minYear = Math.min(...allBuildings.map(b => b.year));
+                currentYear = new Date().getFullYear();
+                maxYear = currentYear; // Extend timeline to current year
+
+                // Populate municipality filter
+                const municipalities = [...new Set(allBuildings.map(b => b.municipality))].sort();
+                const municipalitySelect = document.getElementById('municipality-filter');
+                municipalities.forEach(municipality => {
+                    const option = document.createElement('option');
+                    option.value = municipality;
+                    option.textContent = municipality;
+                    municipalitySelect.appendChild(option);
+                });
+
+                // Initial render
+                filteredBuildings = [...allBuildings];
+                updateStats();
+                calculateTimelineWidth();
+                renderTimeline();
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('timeline').style.display = 'block';
+            } catch (error) {
+                document.getElementById('loading').innerHTML = 'Fel vid laddning av data: ' + error.message;
+            }
+        }
+
+        function updateStats() {
+            const count = filteredBuildings.length;
+            const totalCount = allBuildings.length;
+            const yearRange = `${minYear} - ${maxYear} (nutid)`;
+
+            document.getElementById('stats').textContent =
+                `Visar ${count} av ${totalCount} byggnader | ${yearRange}`;
+        }
+
+        function renderTimeline() {
+            const yearAxis = document.getElementById('year-axis');
+            const buildingRows = document.getElementById('building-rows');
+            const noResults = document.getElementById('no-results');
+
+            // Clear previous content
+            yearAxis.innerHTML = '';
+            buildingRows.innerHTML = '';
+
+            if (filteredBuildings.length === 0) {
+                document.getElementById('timeline').style.display = 'none';
+                noResults.style.display = 'block';
+                return;
+            }
+
+            document.getElementById('timeline').style.display = 'block';
+            noResults.style.display = 'none';
+
+            // Create year axis
+            const yearRange = maxYear - minYear;
+            const yearStep = Math.ceil(yearRange / 20); // Show about 20 year markers
+
+            for (let year = minYear; year <= maxYear; year += yearStep) {
+                const marker = document.createElement('div');
+                marker.className = 'year-marker';
+                marker.textContent = year;
+                const position = ((year - minYear) / yearRange) * timelineWidth;
+                marker.style.left = position + 'px';
+                yearAxis.appendChild(marker);
+            }
+
+            // Set timeline width
+            document.getElementById('timeline').style.width = timelineWidth + 'px';
+            yearAxis.style.width = timelineWidth + 'px';
+            buildingRows.style.width = timelineWidth + 'px';
+
+            // Create building rows
+            filteredBuildings.forEach((building, index) => {
+                const row = document.createElement('div');
+                row.className = 'building-row';
+
+                const bar = document.createElement('div');
+                bar.className = 'building-bar';
+
+                // Calculate position and width (from construction year to current year)
+                const position = ((building.year - minYear) / yearRange) * timelineWidth;
+                const endPosition = ((maxYear - minYear) / yearRange) * timelineWidth;
+                const barWidth = endPosition - position;
+
+                bar.style.left = position + 'px';
+                bar.style.width = barWidth + 'px';
+
+                // Add label
+                const label = document.createElement('div');
+                label.className = 'building-label';
+                label.textContent = building.name;
+                bar.appendChild(label);
+
+                // Add year
+                const yearLabel = document.createElement('div');
+                yearLabel.className = 'building-year';
+                yearLabel.textContent = building.year;
+                bar.appendChild(yearLabel);
+
+                // Add hover tooltip
+                bar.addEventListener('mouseenter', (e) => showTooltip(e, building));
+                bar.addEventListener('mouseleave', hideTooltip);
+                bar.addEventListener('mousemove', moveTooltip);
+
+                // Add click handler to open building URL in new tab
+                bar.addEventListener('click', () => {
+                    window.open(building.id, '_blank', 'noopener,noreferrer');
+                });
+
+                row.appendChild(bar);
+                buildingRows.appendChild(row);
+            });
+        }
+
+        function showTooltip(e, building) {
+            const tooltip = document.getElementById('tooltip');
+            document.getElementById('tooltip-title').textContent = building.name;
+            document.getElementById('tooltip-info').textContent =
+                `År: ${building.year} | Kommun: ${building.municipality} | Klicka för mer information`;
+            tooltip.style.display = 'block';
+            moveTooltip(e);
+        }
+
+        function hideTooltip() {
+            document.getElementById('tooltip').style.display = 'none';
+        }
+
+        function moveTooltip(e) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.left = (e.clientX + 15) + 'px';
+            tooltip.style.top = (e.clientY + 15) + 'px';
+        }
+
+        // Filter functions
+        function applyFilters() {
+            const municipalityFilter = document.getElementById('municipality-filter').value;
+            const searchQuery = document.getElementById('search-box').value.toLowerCase();
+
+            filteredBuildings = allBuildings.filter(building => {
+                const matchesMunicipality = !municipalityFilter || building.municipality === municipalityFilter;
+                const matchesSearch = !searchQuery || building.name.toLowerCase().includes(searchQuery);
+                return matchesMunicipality && matchesSearch;
+            });
+
+            updateStats();
+            calculateTimelineWidth();
+            renderTimeline();
+        }
+
+        // Handle window resize
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (filteredBuildings.length > 0) {
+                    calculateTimelineWidth();
+                    renderTimeline();
+                }
+            }, 250);
+        });
+
+        // Event listeners
+        document.getElementById('municipality-filter').addEventListener('change', applyFilters);
+        document.getElementById('search-box').addEventListener('input', applyFilters);
+
+        // Load data on page load
+        loadCSV();
+    </script>
+</body>
+</html>
