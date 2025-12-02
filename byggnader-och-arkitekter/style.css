@@ -1,0 +1,173 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    background-color: #0a0a0a;
+    color: #e5e5e5;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+}
+
+.info-panel {
+    width: 280px;
+    background-color: #1a1a1a;
+    padding: 30px 25px;
+    border-right: 1px solid #2a2a2a;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+h1 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #f5f5f5;
+    letter-spacing: -0.02em;
+}
+
+.legend {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 15px 0;
+    border-top: 1px solid #2a2a2a;
+    border-bottom: 1px solid #2a2a2a;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #b5b5b5;
+}
+
+.legend-circle {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1.5px solid;
+}
+
+.legend-circle.architect {
+    background-color: #e5e5e5;
+    border-color: #e5e5e5;
+}
+
+.legend-circle.building {
+    background-color: transparent;
+    border-color: #a5a5a5;
+}
+
+#node-info {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #b5b5b5;
+}
+
+#node-info .hint {
+    color: #6a6a6a;
+    font-style: italic;
+}
+
+#node-info .node-name {
+    font-weight: 600;
+    color: #f5f5f5;
+    margin-bottom: 5px;
+}
+
+#node-info .node-type {
+    color: #8a8a8a;
+    font-size: 12px;
+}
+
+#node-info .node-connections {
+    margin-top: 10px;
+    color: #a5a5a5;
+}
+
+#graph {
+    flex: 1;
+    background-color: #0a0a0a;
+}
+
+/* Node styles */
+.node circle {
+    stroke-width: 2px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.node.architect circle {
+    fill: #e5e5e5;
+    stroke: #ffffff;
+}
+
+.node.building circle {
+    fill: #0a0a0a;
+    stroke: #b5b5b5;
+    stroke-width: 2.5px;
+}
+
+.node:hover circle {
+    stroke-width: 3.5px;
+}
+
+.node.architect:hover circle {
+    fill: #ffffff;
+    stroke: #ffffff;
+}
+
+.node.building:hover circle {
+    fill: #1a1a1a;
+    stroke: #e5e5e5;
+    stroke-width: 3.5px;
+}
+
+.node text {
+    font-size: 11px;
+    fill: #b5b5b5;
+    pointer-events: none;
+    user-select: none;
+}
+
+.node.highlighted text {
+    fill: #f5f5f5;
+    font-weight: 600;
+}
+
+/* Link styles */
+.link {
+    stroke: #5a5a5a;
+    stroke-opacity: 0.5;
+    stroke-width: 1.5px;
+    fill: none;
+}
+
+.link.highlighted {
+    stroke: #c5c5c5;
+    stroke-opacity: 0.8;
+    stroke-width: 2px;
+}
+
+/* Dimmed state for non-highlighted elements */
+.node.dimmed circle {
+    opacity: 0.15;
+}
+
+.node.dimmed text {
+    opacity: 0.1;
+}
+
+.link.dimmed {
+    stroke-opacity: 0.05;
+}

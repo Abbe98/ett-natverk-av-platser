@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arkitekter och Byggnader</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="info-panel">
+            <h1>Arkitekter & Byggnader</h1>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-circle architect"></div>
+                    <span>Arkitekter</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-circle building"></div>
+                    <span>Byggnader</span>
+                </div>
+            </div>
+            <div id="node-info">
+                <p class="hint">Hovra över noder för information</p>
+            </div>
+        </div>
+        <svg id="graph"></svg>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Byggnadskalender</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background-color: #ffffff;
+            color: #24292f;
+            padding: 40px 20px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #24292f;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #57606a;
+            margin-bottom: 24px;
+        }
+
+        .controls {
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #24292f;
+        }
+
+        select {
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            background-color: #ffffff;
+            color: #24292f;
+            cursor: pointer;
+            min-width: 200px;
+        }
+
+        select:hover {
+            border-color: #8c959f;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #0969da;
+            box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+        }
+
+        .stats {
+            font-size: 13px;
+            color: #57606a;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: #24292f;
+        }
+
+        .calendar-container {
+            margin-bottom: 32px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 32px 48px;
+        }
+
+        .century-section {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .calendar {
+            display: inline-block;
+        }
+
+        .decade-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .decade-label {
+            font-size: 11px;
+            color: #57606a;
+            width: 60px;
+            text-align: right;
+            padding-right: 12px;
+            font-weight: 500;
+        }
+
+        .year-cells {
+            display: flex;
+            gap: 3px;
+        }
+
+        .year-cell {
+            width: 12px;
+            height: 12px;
+            background-color: #ebedf0;
+            border-radius: 2px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .year-cell[data-count="0"] {
+            background-color: #ebedf0;
+        }
+
+        .year-cell[data-level="1"] {
+            background-color: #9ca0a5;
+        }
+
+        .year-cell[data-level="2"] {
+            background-color: #6e7781;
+        }
+
+        .year-cell[data-level="3"] {
+            background-color: #57606a;
+        }
+
+        .year-cell[data-level="4"] {
+            background-color: #24292f;
+        }
+
+        .year-cell:hover {
+            outline: 2px solid #24292f;
+            outline-offset: 0;
+            z-index: 10;
+        }
+
+        .tooltip {
+            position: fixed;
+            background-color: #24292f;
+            color: #ffffff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+            white-space: nowrap;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .tooltip.visible {
+            display: block;
+        }
+
+        .legend {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: #57606a;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #d0d7de;
+        }
+
+        .legend-label {
+            margin-right: 4px;
+        }
+
+        .legend-scale {
+            display: flex;
+            gap: 3px;
+            align-items: center;
+        }
+
+        .legend-cell {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #57606a;
+            font-size: 14px;
+        }
+
+        .error {
+            background-color: #fff8f8;
+            border: 1px solid #d0d7de;
+            color: #cf222e;
+            padding: 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Byggnadskalender</h1>
+            <p class="subtitle">Historisk byggnadsdata visualiserad per sekel och decennium</p>
+        </header>
+
+        <div class="controls">
+            <label for="municipality-select">Kommun:</label>
+            <select id="municipality-select">
+                <option value="">Laddar...</option>
+            </select>
+            <div class="stats">
+                <div class="stat-item">
+                    <span>Totalt antal byggnader:</span>
+                    <span class="stat-value" id="total-buildings">-</span>
+                </div>
+                <div class="stat-item">
+                    <span>Tidsperiod:</span>
+                    <span class="stat-value" id="year-range">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="error-container"></div>
+        <div id="calendar-container" class="calendar-container">
+            <div class="loading">Laddar data...</div>
+        </div>
+
+        <div class="legend">
+            <span class="legend-label">Antal byggnader:</span>
+            <div class="legend-scale">
+                <span>Färre</span>
+                <div class="legend-cell" style="background-color: #ebedf0;"></div>
+                <div class="legend-cell" style="background-color: #9ca0a5;"></div>
+                <div class="legend-cell" style="background-color: #6e7781;"></div>
+                <div class="legend-cell" style="background-color: #57606a;"></div>
+                <div class="legend-cell" style="background-color: #24292f;"></div>
+                <span>Fler</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        let buildingsData = [];
+        let municipalities = [];
+        let currentMunicipality = '';
+
+        // Parse CSV data
+        function parseCSV(text) {
+            const lines = text.trim().split('\n');
+            const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                if (!line.trim()) continue;
+
+                // Simple CSV parser (handles quotes)
+                const values = [];
+                let current = '';
+                let inQuotes = false;
+
+                for (let j = 0; j < line.length; j++) {
+                    const char = line[j];
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        values.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                values.push(current.trim());
+
+                if (values.length >= 4) {
+                    const year = parseInt(values[2]);
+                    if (!isNaN(year) && year > 0) {
+                        data.push({
+                            id: values[0],
+                            name: values[1],
+                            year: year,
+                            municipality: values[3]
+                        });
+                    }
+                }
+            }
+            return data;
+        }
+
+        // Get unique municipalities
+        function getUniqueMunicipalities(data) {
+            const municSet = new Set(data.map(b => b.municipality));
+            return Array.from(municSet).sort();
+        }
+
+        // Filter buildings by municipality
+        function filterByMunicipality(municipality) {
+            if (municipality === 'all') {
+                return buildingsData;
+            }
+            return buildingsData.filter(b => b.municipality === municipality);
+        }
+
+        // Count buildings by year
+        function countByYear(buildings) {
+            const counts = {};
+            buildings.forEach(b => {
+                counts[b.year] = (counts[b.year] || 0) + 1;
+            });
+            return counts;
+        }
+
+        // Get intensity level based on count
+        function getLevel(count, maxCount) {
+            if (count === 0) return 0;
+            const ratio = count / maxCount;
+            if (ratio <= 0.2) return 1;
+            if (ratio <= 0.4) return 2;
+            if (ratio <= 0.6) return 3;
+            return 4;
+        }
+
+        // Render calendar for a century
+        function renderCentury(startYear, endYear, yearCounts, maxCount) {
+            const centuryDiv = document.createElement('div');
+            centuryDiv.className = 'century-section';
+
+            const calendar = document.createElement('div');
+            calendar.className = 'calendar';
+
+            for (let decade = startYear; decade < endYear; decade += 10) {
+                const row = document.createElement('div');
+                row.className = 'decade-row';
+
+                const label = document.createElement('div');
+                label.className = 'decade-label';
+                label.textContent = `${decade}s`;
+                row.appendChild(label);
+
+                const cells = document.createElement('div');
+                cells.className = 'year-cells';
+
+                for (let year = decade; year < decade + 10; year++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'year-cell';
+                    const count = yearCounts[year] || 0;
+                    const level = getLevel(count, maxCount);
+                    cell.setAttribute('data-count', count);
+                    cell.setAttribute('data-level', level);
+                    cell.setAttribute('data-year', year);
+
+                    cell.addEventListener('mouseenter', showTooltip);
+                    cell.addEventListener('mouseleave', hideTooltip);
+                    cell.addEventListener('mousemove', moveTooltip);
+
+                    cells.appendChild(cell);
+                }
+
+                row.appendChild(cells);
+                calendar.appendChild(row);
+            }
+
+            centuryDiv.appendChild(calendar);
+            return centuryDiv;
+        }
+
+        // Tooltip functions
+        function showTooltip(e) {
+            const cell = e.target;
+            const year = cell.getAttribute('data-year');
+            const count = cell.getAttribute('data-count');
+            const tooltip = document.getElementById('tooltip');
+            tooltip.textContent = `${year}: ${count} byggnad${count !== '1' ? 'er' : ''}`;
+            tooltip.classList.add('visible');
+            moveTooltip(e);
+        }
+
+        function hideTooltip() {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.classList.remove('visible');
+        }
+
+        function moveTooltip(e) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.left = (e.clientX + 15) + 'px';
+            tooltip.style.top = (e.clientY + 15) + 'px';
+        }
+
+        // Render the complete calendar
+        function renderCalendar(municipality) {
+            const container = document.getElementById('calendar-container');
+            container.innerHTML = '';
+
+            const buildings = filterByMunicipality(municipality);
+            if (buildings.length === 0) {
+                container.innerHTML = '<div class="loading">Ingen data tillgänglig för denna kommun</div>';
+                return;
+            }
+
+            const yearCounts = countByYear(buildings);
+            const years = Object.keys(yearCounts).map(Number).sort((a, b) => a - b);
+            const minYear = years[0];
+            const maxYear = years[years.length - 1];
+            const maxCount = Math.max(...Object.values(yearCounts));
+
+            // Update stats
+            document.getElementById('total-buildings').textContent = buildings.length;
+            document.getElementById('year-range').textContent = `${minYear}–${maxYear}`;
+
+            // Group by centuries
+            const minCentury = Math.floor(minYear / 100);
+            const maxCentury = Math.floor(maxYear / 100);
+
+            for (let century = minCentury; century <= maxCentury; century++) {
+                const startYear = century * 100;
+                const endYear = startYear + 100;
+                const centuryDiv = renderCentury(startYear, endYear, yearCounts, maxCount);
+                container.appendChild(centuryDiv);
+            }
+        }
+
+        // Initialize municipality dropdown
+        function initializeMunicipalitySelect() {
+            const select = document.getElementById('municipality-select');
+            select.innerHTML = '';
+
+            // Add "All municipalities" option
+            const allOption = document.createElement('option');
+            allOption.value = 'all';
+            allOption.textContent = 'Alla kommuner';
+            select.appendChild(allOption);
+
+            municipalities.forEach(muni => {
+                const option = document.createElement('option');
+                option.value = muni;
+                option.textContent = muni;
+                select.appendChild(option);
+            });
+
+            // Set default to Stockholm if available, otherwise first municipality
+            if (municipalities.includes('Stockholm')) {
+                currentMunicipality = 'Stockholm';
+            } else {
+                currentMunicipality = municipalities[0] || '';
+            }
+            select.value = currentMunicipality;
+
+            select.addEventListener('change', (e) => {
+                currentMunicipality = e.target.value;
+                renderCalendar(currentMunicipality);
+            });
+        }
+
+        // Load and process data
+        async function loadData() {
+            try {
+                const response = await fetch('Byggnader med startdatum, kommuner.csv');
+                if (!response.ok) {
+                    throw new Error('Kunde inte ladda CSV-filen');
+                }
+                const text = await response.text();
+                buildingsData = parseCSV(text);
+
+                if (buildingsData.length === 0) {
+                    throw new Error('Ingen giltig data hittades i CSV-filen');
+                }
+
+                municipalities = getUniqueMunicipalities(buildingsData);
+                initializeMunicipalitySelect();
+                renderCalendar(currentMunicipality);
+
+            } catch (error) {
+                const errorContainer = document.getElementById('error-container');
+                errorContainer.innerHTML = `<div class="error">Fel vid laddning av data: ${error.message}</div>`;
+                document.getElementById('calendar-container').innerHTML = '';
+                console.error('Error:', error);
+            }
+        }
+
+        // Start the application
+        loadData();
+    </script>
+</body>
+</html>
